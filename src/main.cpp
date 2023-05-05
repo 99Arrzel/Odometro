@@ -16,11 +16,6 @@ bool lastA1 = false;
 
 bool direction = true;
 bool counted = false;
-// os_timer_t myTimer;
-hw_timer_t *timer = NULL;
-const int DELAY_MS = 1000;
-
-// Callback function for the timer
 
 void handleWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 {
@@ -45,11 +40,6 @@ void emitStepsWebsocket()
   webSocket.broadcastTXT(stepsString);
 }
 
-void IRAM_ATTR onTimer()
-{
-  emitStepsWebsocket();
-}
-
 void setup()
 {
   Serial.begin(9600);
@@ -67,14 +57,16 @@ void setup()
     Serial.print(".");
     delay(500);
   }
-  timer = timerBegin(0, 80, true);
-  timerAttachInterrupt(timer, &onTimer, true);
-  timerAlarmWrite(timer, DELAY_MS * 1000, true);
-  timerAlarmEnable(timer);
 }
 
 void loop()
 {
+  /* TImer simple que cuente el tiempo que paso desde la ultima vez */
+  if (millis() - lastPrint > printInterval)
+  {
+    lastPrint = millis();
+    emitStepsWebsocket();
+  }
   webSocket.loop();
   int a0 = digitalRead(input1);
   int a1 = digitalRead(input2);
