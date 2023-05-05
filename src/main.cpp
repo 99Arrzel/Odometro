@@ -2,9 +2,9 @@
 #include <WiFi.h>
 #include <WebSocketsServer.h>
 // Ahora cambia, es un esp8266
-// entrada d5 y d6
-int input1 = D1;
-int input2 = D2;
+// entrada D32 y D33
+int input1 = 12;
+int input2 = 13;
 
 const char *ssid = "unoalocho";
 const char *password = "12345678";
@@ -16,7 +16,8 @@ bool lastA1 = false;
 
 bool direction = true;
 bool counted = false;
-os_timer_t myTimer;
+// os_timer_t myTimer;
+hw_timer_t *timer = NULL;
 const int DELAY_MS = 1000;
 
 // Callback function for the timer
@@ -43,7 +44,8 @@ void emitStepsWebsocket()
   String stepsString = String(steps);
   webSocket.broadcastTXT(stepsString);
 }
-void timerCallback(void *pArg)
+
+void IRAM_ATTR onTimer()
 {
   emitStepsWebsocket();
 }
@@ -65,8 +67,10 @@ void setup()
     Serial.print(".");
     delay(500);
   }
-  os_timer_setfn(&myTimer, timerCallback, NULL);
-  os_timer_arm(&myTimer, DELAY_MS, true /* repeat */);
+  timer = timerBegin(0, 80, true);
+  timerAttachInterrupt(timer, &onTimer, true);
+  timerAlarmWrite(timer, DELAY_MS * 1000, true);
+  timerAlarmEnable(timer);
 }
 
 void loop()
