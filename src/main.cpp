@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <WebSocketsServer.h>
 // Ahora cambia, es un esp8266
 // entrada d5 y d6
@@ -55,6 +55,7 @@ void setup()
   pinMode(input1, INPUT);
   pinMode(input2, INPUT);
   /* Conectar a wifi */
+  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   webSocket.begin();
   webSocket.onEvent(handleWebSocketEvent);
@@ -74,18 +75,20 @@ void loop()
   int a0 = digitalRead(input1);
   int a1 = digitalRead(input2);
   // Direction
-  if (lastA1 && !lastA0)
+  if (lastA1 && !lastA0) // 0 1
   {
     direction = true;
-    counted = false;
   }
-  if (lastA0 && !lastA1)
+  if (lastA0 && !lastA1) // 1 0
   {
     direction = false;
+  }
+  if (!lastA0 && !lastA1) // 0 0 (Paso por un puro blanco)
+  {
     counted = false;
   }
   // Count when both are +555
-  if (lastA0 && lastA1)
+  if (lastA0 && lastA1) // 1 1 (Paso por un puro negro)
   {
     if (counted == false)
     {
