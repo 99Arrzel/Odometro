@@ -1,10 +1,10 @@
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <WebSocketsServer.h>
 // Ahora cambia, es un esp8266
-// entrada d5 y d6
-int input1 = D1;
-int input2 = D2;
+// entrada D32 y D33
+int input1 = 12;
+int input2 = 13;
 
 const char *ssid = "unoalocho";
 const char *password = "12345678";
@@ -16,10 +16,6 @@ bool lastA1 = false;
 
 bool direction = true;
 bool counted = false;
-os_timer_t myTimer;
-const int DELAY_MS = 1000;
-
-// Callback function for the timer
 
 void handleWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 {
@@ -43,10 +39,6 @@ void emitStepsWebsocket()
   String stepsString = String(steps);
   webSocket.broadcastTXT(stepsString);
 }
-void timerCallback(void *pArg)
-{
-  emitStepsWebsocket();
-}
 
 void setup()
 {
@@ -55,6 +47,7 @@ void setup()
   pinMode(input1, INPUT);
   pinMode(input2, INPUT);
   /* Conectar a wifi */
+  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   webSocket.begin();
   webSocket.onEvent(handleWebSocketEvent);
@@ -64,28 +57,34 @@ void setup()
     Serial.print(".");
     delay(500);
   }
-  os_timer_setfn(&myTimer, timerCallback, NULL);
-  os_timer_arm(&myTimer, DELAY_MS, true /* repeat */);
 }
 
 void loop()
 {
+  /* TImer simple que cuente el tiempo que paso desde la ultima vez */
+  if (millis() - lastPrint > printInterval)
+  {
+    lastPrint = millis();
+    emitStepsWebsocket();
+  }
   webSocket.loop();
   int a0 = digitalRead(input1);
   int a1 = digitalRead(input2);
   // Direction
-  if (lastA1 && !lastA0)
+  if (lastA1 && !lastA0) // 0 1
   {
     direction = true;
-    counted = false;
   }
-  if (lastA0 && !lastA1)
+  if (lastA0 && !lastA1) // 1 0
   {
     direction = false;
+  }
+  if (!lastA0 && !lastA1) // 0 0 (Paso por un puro blanco)
+  {
     counted = false;
   }
   // Count when both are +555
-  if (lastA0 && lastA1)
+  if (lastA0 && lastA1) // 1 1 (Paso por un puro negro)
   {
     if (counted == false)
     {
