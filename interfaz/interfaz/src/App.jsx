@@ -33,10 +33,10 @@ function App() {
     ws.send("set:0");
   };
   const [mediciones, setMediciones] = useState([]);
-  const [multiplicador, setMultiplicador] = useState(0.1754385964912281);
+  const [multiplicador, setMultiplicador] = useState(0.0250718522595242);
   return (
     <>
-      <div className="flex gap-2 bg-gray-700 text-white h-screen">
+      <div className="flex flex-wrap justify-center gap-2 bg-gray-700 text-white h-screen">
         <div>
           <h1 className="text-2xl">Contador</h1>
           <h2>IP: {ipconectar}</h2>
