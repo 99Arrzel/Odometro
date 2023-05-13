@@ -1,119 +1,93 @@
-#include <Arduino.h>
+#include "AiEsp32RotaryEncoder.h"
+#include "Arduino.h"
 #include <WiFi.h>
 #include <WebSocketsServer.h>
-// Ahora cambia, es un esp8266
-// entrada D32 y D33
-int input1 = 12;
-int input2 = 13;
-
 const char *ssid = "unoalocho";
 const char *password = "12345678";
-const unsigned long printInterval = 500;
-unsigned long lastPrint = 0;
-int steps = 0;
-bool lastA0 = false;
-bool lastA1 = false;
-
-bool direction = true;
-bool counted = false;
-
+#define ROTARY_ENCODER_A_PIN 25
+#define ROTARY_ENCODER_B_PIN 26
+#define ROTARY_ENCODER_BUTTON_PIN 21
+#define ROTARY_ENCODER_VCC_PIN -1
+#define ROTARY_ENCODER_STEPS 1
+// instead of changing here, rather change numbers above
+AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, ROTARY_ENCODER_B_PIN, ROTARY_ENCODER_BUTTON_PIN, ROTARY_ENCODER_VCC_PIN, ROTARY_ENCODER_STEPS);
+WebSocketsServer webSocket = WebSocketsServer(81);
+void rotary_onButtonClick()
+{
+  static unsigned long lastTimePressed = 0; // Soft debouncing
+  if (millis() - lastTimePressed < 500)
+  {
+    return;
+  }
+  lastTimePressed = millis();
+  Serial.print("button pressed ");
+  Serial.print(millis());
+  Serial.println(" milliseconds after restart");
+}
 void handleWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 {
-  Serial.print("Received from client: ");
   if (type == WStype_TEXT)
   {
-    Serial.println((char *)payload);
     String message = (char *)payload;
     String mtype = message.substring(0, 3);
     float value = atof(message.substring(4).c_str());
     if (mtype == "set")
     {
-      steps = value;
+      rotaryEncoder.setEncoderValue(value);
     }
   }
 }
-
-WebSocketsServer webSocket = WebSocketsServer(81);
-void emitStepsWebsocket()
+void emitStepsWebsocket(int steps)
 {
   String stepsString = String(steps);
   webSocket.broadcastTXT(stepsString);
 }
-
-void setup()
+void rotary_loop()
 {
-  Serial.begin(9600);
-
-  pinMode(input1, INPUT);
-  pinMode(input2, INPUT);
-  /* Conectar a wifi */
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  webSocket.begin();
-  webSocket.onEvent(handleWebSocketEvent);
-  while (WiFi.status() != WL_CONNECTED)
+  // dont print anything unless value changed
+  if (rotaryEncoder.encoderChanged())
   {
-
-    Serial.print(".");
-    delay(500);
+    emitStepsWebsocket(rotaryEncoder.readEncoder());
+  }
+  if (rotaryEncoder.isEncoderButtonClicked())
+  {
+    rotary_onButtonClick();
   }
 }
-
+void IRAM_ATTR readEncoderISR()
+{
+  rotaryEncoder.readEncoder_ISR();
+}
+void setup()
+{
+  Serial.begin(115200);
+  // we must initialize rotary encoder
+  rotaryEncoder.begin();
+  rotaryEncoder.setup(readEncoderISR);
+  // set boundaries and if values should cycle or not
+  // in this example we will set possible values between 0 and 1000;
+  bool circleValues = true;
+  rotaryEncoder.setBoundaries(INT32_MIN, INT32_MAX, circleValues); // minValue, maxValue, circleValues true|false (when max go to min and vice versa)
+  /*Rotary acceleration introduced 25.2.2021.
+   * in case range to select is huge, for example - select a value between 0 and 1000 and we want 785
+   * without accelerateion you need long time to get to that number
+   * Using acceleration, faster you turn, faster will the value raise.
+   * For fine tuning slow down.
+   */
+  rotaryEncoder.disableAcceleration(); // acceleration is now enabled by default - disable if you dont need it
+  // rotaryEncoder.setAcceleration(250); // or set the value - larger number = more accelearation; 0 or 1 means disabled acceleration
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.println("Connecting to WiFi..");
+  }
+  webSocket.begin();
+}
 void loop()
 {
-  /* TImer simple que cuente el tiempo que paso desde la ultima vez */
-  if (millis() - lastPrint > printInterval)
-  {
-    lastPrint = millis();
-    emitStepsWebsocket();
-  }
+  // in loop call your custom function which will process rotary encoder values
+  rotary_loop();
   webSocket.loop();
-  int a0 = digitalRead(input1);
-  int a1 = digitalRead(input2);
-  // Direction
-  if (lastA1 && !lastA0) // 0 1
-  {
-    direction = true;
-  }
-  if (lastA0 && !lastA1) // 1 0
-  {
-    direction = false;
-  }
-  if (!lastA0 && !lastA1) // 0 0 (Paso por un puro blanco)
-  {
-    counted = false;
-  }
-  // Count when both are +555
-  if (lastA0 && lastA1) // 1 1 (Paso por un puro negro)
-  {
-    if (counted == false)
-    {
-      counted = true;
-      if (direction)
-      {
-        steps++;
-      }
-      else
-      {
-        steps--;
-      }
-    }
-  }
-  // States
-  if (a0 == 1)
-  {
-    lastA0 = true;
-  }
-  else
-  {
-    lastA0 = false;
-  }
-  if (a1 == 1)
-  {
-    lastA1 = true;
-  }
-  else
-  {
-    lastA1 = false;
-  }
 }
